@@ -1270,8 +1270,9 @@ class RedisCluster(StrictRedisCluster):
         if shard_hint:
             raise RedisClusterException("shard_hint is deprecated in cluster mode")
 
-        if transaction:
-            raise RedisClusterException("transaction is deprecated in cluster mode")
+        #Hendrik: Make sure that you use only pipelining and transactions on the same shard!
+        #if transaction:
+        #    raise RedisClusterException("transaction is deprecated in cluster mode")
 
         return StrictClusterPipeline(
             connection_pool=self.connection_pool,
