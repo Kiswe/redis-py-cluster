@@ -8,6 +8,7 @@ from .crc import crc16
 from .exceptions import RedisClusterException
 
 # 3rd party imports
+
 from redis import Redis
 from redis._compat import unicode, bytes, long, basestring
 from redis.connection import Encoder
@@ -43,7 +44,6 @@ class NodeManager(object):
             connection_kwargs.get('encoding_errors', 'strict'),
             connection_kwargs.get('decode_responses', False)
         )
-
         if not self.startup_nodes:
             raise RedisClusterException("No startup nodes provided")
 
