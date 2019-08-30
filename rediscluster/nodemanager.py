@@ -8,8 +8,9 @@ from .crc import crc16
 from .exceptions import RedisClusterException
 
 # 3rd party imports
-from redis import StrictRedis
-from redis._compat import unicode, long, basestring
+
+from redis import Redis
+from redis._compat import unicode, bytes, long, basestring
 from redis.connection import Encoder
 from redis import ConnectionError, TimeoutError, ResponseError
 
@@ -39,9 +40,9 @@ class NodeManager(object):
         self._skip_full_coverage_check = skip_full_coverage_check
         self.nodemanager_follow_cluster = nodemanager_follow_cluster
         self.encoder = Encoder(
-		connection_kwargs.get('encoding', 'utf-8'),
-                connection_kwargs.get('encoding_errors', 'strict'),
-                connection_kwargs.get('decode_responses', False)
+            connection_kwargs.get('encoding', 'utf-8'),
+            connection_kwargs.get('encoding_errors', 'strict'),
+            connection_kwargs.get('decode_responses', False)
         )
         if not self.startup_nodes:
             raise RedisClusterException("No startup nodes provided")
@@ -136,7 +137,7 @@ class NodeManager(object):
             'decode_responses',
         )
         connection_kwargs = {k: v for k, v in self.connection_kwargs.items() if k in set(allowed_keys) - set(disabled_keys)}
-        return StrictRedis(host=host, port=port, decode_responses=decode_responses, **connection_kwargs)
+        return Redis(host=host, port=port, decode_responses=decode_responses, **connection_kwargs)
 
     def initialize(self):
         """
@@ -164,7 +165,8 @@ class NodeManager(object):
                 continue
             except ResponseError as e:
                 # Isn't a cluster connection, so it won't parse these exceptions automatically
-                if 'CLUSTERDOWN' in e.message or 'MASTERDOWN' in e.message:
+                message = e.__str__()
+                if 'CLUSTERDOWN' in message or 'MASTERDOWN' in message:
                     continue
                 else:
                     raise RedisClusterException("ERROR sending 'cluster slots' command to redis server: {0}".format(node))
@@ -178,7 +180,7 @@ class NodeManager(object):
             if (len(cluster_slots) == 1 and len(cluster_slots[0][2][0]) == 0 and len(self.startup_nodes) == 1):
                 cluster_slots[0][2][0] = self.startup_nodes[0]['host']
 
-            # No need to decode response because StrictRedis should handle that for us...
+            # No need to decode response because Redis should handle that for us...
             for slot in cluster_slots:
                 master_node = slot[2]
 

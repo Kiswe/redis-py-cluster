@@ -20,9 +20,10 @@ with open(os.path.join('docs', 'release-notes.rst')) as f:
 
 setup(
     name="redis-py-cluster",
-    version="1.3.6",
+    version="2.0.0",
     description="Library for communicating with Redis Clusters. Built on top of redis-py lib",
     long_description=readme + '\n\n' + history,
+    long_description_content_type="text/markdown",
     author="Johan Andersson",
     author_email="Grokzen@gmail.com",
     maintainer='Johan Andersson',
@@ -33,6 +34,12 @@ setup(
     install_requires=[
         'redis==3.3.6'
     ],
+    python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
+    extras_require={
+        'hiredis': [
+            "hiredis>=0.1.3",
+        ],
+    },
     keywords=[
         'redis',
         'redis cluster',
@@ -50,10 +57,10 @@ setup(
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'Environment :: Web Environment',
         'Operating System :: POSIX',
         'License :: OSI Approved :: MIT License',
