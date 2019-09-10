@@ -450,12 +450,12 @@ class RedisCluster(Redis):
             res[node["name"]] = self.parse_response(connection, command, **kwargs)
         except (ConnectionError, TimeoutError) as e:
             if ttl > 0:
-                res = _execute_command_on_node_retry(node, ttl - 1, *args, **kwargs)
+                res = self._execute_command_on_node_retry(node, ttl - 1, *args, **kwargs)
             elif ttl == 0:
                 connection.disconnect()
                 self.connection_pool.disconnect()
                 self.connection_pool.reset()
-                res = _execute_command_on_node_retry(node, -1)
+                res = self._execute_command_on_node_retry(node, -1, *args, **kwargs)
             else:
                 raise
         finally:
