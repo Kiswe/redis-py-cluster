@@ -440,6 +440,29 @@ class RedisCluster(Redis):
 
         raise ClusterError('TTL exhausted.')
 
+    def _execute_command_on_node_retry(self, node, ttl, *args, **kwargs):
+        response = None
+        res = {}
+        command = args[0]
+        connection = self.connection_pool.get_connection_by_node(node)
+        try:
+            connection.send_command(*args)
+            res[node["name"]] = self.parse_response(connection, command, **kwargs)
+        except (ConnectionError, TimeoutError) as e:
+            if ttl > 0:
+                res = _execute_command_on_node_retry(node, ttl - 1, *args, **kwargs)
+            elif ttl == 0:
+                connection.disconnect()
+                self.connection_pool.disconnect()
+                self.connection_pool.reset()
+                res = _execute_command_on_node_retry(node, -1)
+            else:
+                raise
+        finally:
+            self.connection_pool.release(connection
+        return res
+
+
     def _execute_command_on_nodes(self, nodes, *args, **kwargs):
         """
         """
@@ -458,14 +481,11 @@ class RedisCluster(Redis):
 
                 if not connection.retry_on_timeout and isinstance(e, TimeoutError):
                     raise
-
-                connection.send_command(*args)
-                res[node["name"]] = self.parse_response(connection, command, **kwargs)
+                res[node["name"]] = self._execute_command_on_node_retry(node, self.RedisClusterRequestTTL, *args, **kwargs)
             except ClusterDownError as e:
                 self.connection_pool.disconnect()
                 self.connection_pool.reset()
                 self.refresh_table_asap = True
-
                 raise
             finally:
                 self.connection_pool.release(connection)
