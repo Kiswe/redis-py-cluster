@@ -459,7 +459,7 @@ class RedisCluster(Redis):
             else:
                 raise
         finally:
-            self.connection_pool.release(connection
+            self.connection_pool.release(connection)
         return res
 
 
