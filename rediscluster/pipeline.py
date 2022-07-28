@@ -169,6 +169,7 @@ class ClusterPipeline(RedisCluster):
                 nodes[node_name] = NodeCommands(
                                         self.parse_response,
                                         self.connection_pool.get_connection_by_node(node),
+                                        response_callbacks  = self.response_callbacks,
                                         use_multi           = use_multi )
 
             nodes[node_name].append(c)
@@ -383,11 +384,12 @@ class NodeCommands(object):
     """
 
     def __init__(self, parse_response, connection,
-                 use_multi = False ):
+                 response_callbacks = None, use_multi = False ):
         """
         """
         self.parse_response = parse_response
         self.connection = connection
+        self.response_callbacks = response_callbacks or dict()
         self.commands   = []
         self.iRsp       = []
         self.useMulti   = use_multi     # if true, use multi-exec where possible.
@@ -543,5 +545,13 @@ class NodeCommands(object):
                 cmd = commands[ i ]
                 if  cmd.result is not None:
                     continue                            # already have the result
+
+                # We have to run response callbacks manually
+                if  not isinstance( r, Exception ):
+                    args            = cmd.args
+                    options         = cmd.options
+                    command_name    = args[ 0 ]
+                    if  command_name in self.response_callbacks :
+                        r   = self.response_callbacks[ command_name ]( r, **options )
 
                 cmd.result  = r
