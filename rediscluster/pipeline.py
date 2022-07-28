@@ -389,6 +389,7 @@ class NodeCommands(object):
         self.parse_response = parse_response
         self.connection = connection
         self.commands   = []
+        self.iRsp       = []
         self.useMulti   = use_multi     # if true, use multi-exec where possible.
 
     def append(self, c):
@@ -422,7 +423,50 @@ class NodeCommands(object):
 
     def addTransaction( self, commands ):
         cmds    = []
+        iRsp    = []                    # list of indices where the response should go
+
+        nCmds   = len( commands )
+        if nCmds        < 2:
+            cmds        = [ c.args for    c in            commands  ]
+            iRsp        = [ i      for i, c in enumerate( commands )]
+            self.iRsp   = iRsp
+            return cmds
+
+        iRun    = []                    # list of indices in the run
+        inArun  = False                 # in a run of commands for same slot
+        for i  in range( nCmds - 1 ) :
+            c1  = commands[ i      ]
+            c2  = commands[ i  + 1 ]
+          # starting a new run?
+            if  not inArun and c1.slot == c2.slot :
+                inArun  = True
+                cmds.append( ( 'MULTI', ) )
+                iRsp.append( None )     # should discard this rsp (will be "OK")
+          # add the actual cmd
+            inArun  = self.addCmd( cmds, c1, i,     iRsp, iRun, inArun, c1.slot == c2.slot )
+
+      # remember to add the last commands
+        inArun      = self.addCmd( cmds, c2, i + 1, iRsp, iRun, inArun, False )
+
+        self.iRsp   = iRsp
         return cmds
+
+    def addCmd( self, cmds, cmd, i, iRsp, iRun, inArun, sameSlot ):
+        cmds.append( cmd.args )
+        if  inArun:
+            index = str( i     )        # in good case we should discard this rsp.
+            iRsp.append( index )        # should discard this rsp (will be "QUEUED")
+            iRun.append( i     )
+        else:
+            iRsp.append( i    )         # this response is for cmds[ i ]
+
+      # ending a run?
+        if  inArun  and not sameSlot :
+            inArun  = False
+            cmds.append( ( 'EXEC', ) )
+            iRsp.append( iRun[ : ] )    # need [:] to create a shallow copy, because we clear iRun next.
+            iRun.clear()                # must use clear(), since the caller owns iRun.
+        return inArun
 
     def read(self):
         if  self.useMulti :
