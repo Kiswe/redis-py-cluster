@@ -503,4 +503,45 @@ class NodeCommands(object):
     def readMultiExec(self):
         """
         """
-        pass
+        # much of error handling copied from
+        #     redis.client.Pipeline._execute_transaction
+        connection  = self.connection
+        commands    = self.commands
+        for index  in self.iRsp :       # iRsp = list of indices into responses
+            try:
+                rsp = self.parse_response( connection, '_' )
+            except (ConnectionError, TimeoutError) as e:
+                for c in self.commands:
+                    c.result = e
+                return
+            except RedisError:
+                rsp = sys.exc_info()[ 1 ]
+
+            if  index is None :
+                # We should eat this response ('OK' from MULTI).
+                # We used to eat 'QUEUED' for commands in multi-exec.  But it could
+                # be moved or other errors.  In those case we want to record the
+                # error to the commands.  This is handled in next section.
+                # TODO: if the rsp to MULTI is not 'OK'?
+                continue
+
+            if  isinstance( index, int ) :
+                # one rsp for one plain command
+                indexList   = [ index ]
+                rspList     = [ rsp   ]
+            else :
+                # list of rsp from EXEC (as in MULTI-EXEC)
+                indexList   = index
+                rspList     = rsp
+
+            if  len( rspList ) != len( indexList ) :
+                self.connection.disconnect()
+                raise ResponseError( "Wrong number of response items from "
+                                     "pipeline execution" )
+
+            for i, r in zip( indexList, rspList ) :
+                cmd = commands[ i ]
+                if  cmd.result is not None:
+                    continue                            # already have the result
+
+                cmd.result  = r
