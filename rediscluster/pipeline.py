@@ -209,6 +209,8 @@ class ClusterPipeline(RedisCluster):
         if attempt and allow_redirections and     use_multi :
             # some slots moved, refresh node-slot table asap.
             self.refresh_table_asap = True
+            super( ClusterPipeline, self ).execute_command( 'cluster', 'keyslot', 'a' )
+            # ^^ run a harmless command to force fetch a new node-slot table.
 
         if attempt and allow_redirections and not use_multi :
             # RETRY MAGIC HAPPENS HERE!
