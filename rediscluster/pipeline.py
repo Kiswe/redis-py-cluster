@@ -157,6 +157,7 @@ class ClusterPipeline(RedisCluster):
             # command should route to.
             slot = self._determine_slot(*c.args)
             node = self.connection_pool.get_node_by_slot(slot)
+            c.slot  = slot
 
             # little hack to make sure the node name is populated. probably could clean this up.
             self.connection_pool.nodes.set_node_name(node)
@@ -374,6 +375,7 @@ class PipelineCommand(object):
         self.result = None
         self.node = None
         self.asking = False
+        self.slot   = None
 
 
 class NodeCommands(object):
