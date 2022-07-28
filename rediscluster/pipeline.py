@@ -12,7 +12,7 @@ from .utils import clusterdown_wrapper, dict_merge
 
 # 3rd party imports
 from redis import Redis
-from redis.exceptions import ConnectionError, RedisError, TimeoutError
+from redis.exceptions import ConnectionError, RedisError, TimeoutError, ExecAbortError
 from redis._compat import imap, unicode
 
 
@@ -206,6 +206,10 @@ class ClusterPipeline(RedisCluster):
         # collect all the commands we are allowed to retry.
         # (MOVED, ASK, or connection errors or timeout errors)
         attempt = sorted([c for c in attempt if isinstance(c.result, ERRORS_ALLOW_RETRY)], key=lambda x: x.position)
+        if attempt and allow_redirections and     use_multi :
+            # some slots moved, refresh node-slot table asap.
+            self.refresh_table_asap = True
+
         if attempt and allow_redirections and not use_multi :
             # RETRY MAGIC HAPPENS HERE!
             # send these remaing comamnds one at a time using `execute_command`
