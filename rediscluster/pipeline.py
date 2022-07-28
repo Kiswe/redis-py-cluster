@@ -527,6 +527,19 @@ class NodeCommands(object):
                 # TODO: if the rsp to MULTI is not 'OK'?
                 continue
 
+            if  isinstance( index, str ) :
+                # for commands that are part of a multi-exec transaction, we encode
+                # the index as str (usually int).
+                # If the result is "QUEUED" (good case), we can discard this result.
+                # But if the result is an error, we need to store the error result.
+                if  rsp == b'QUEUED' :
+                    continue                 # good case, discard the placeholder rsp.
+                index   = int( index )
+                cmd     = commands[ index ]
+                if  cmd . result is None :
+                    cmd . result =  rsp      # error case, record the error.
+                continue
+
             if  isinstance( index, int ) :
                 # one rsp for one plain command
                 indexList   = [ index ]
@@ -535,6 +548,12 @@ class NodeCommands(object):
                 # list of rsp from EXEC (as in MULTI-EXEC)
                 indexList   = index
                 rspList     = rsp
+
+            if  isinstance( rsp, ExecAbortError ) :
+                # got exec abort error, eg. due to slot moved.
+                # the errors were already recorded the the commands, no need
+                # to do it again here in the EXEC step.
+                continue
 
             if  len( rspList ) != len( indexList ) :
                 self.connection.disconnect()
