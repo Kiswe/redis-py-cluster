@@ -90,7 +90,7 @@ class ClusterPipeline(RedisCluster):
             number, cmd, unicode(exception.args[0]))
         exception.args = (msg,) + exception.args[1:]
 
-    def execute(self, raise_on_error=True):
+    def execute(self, raise_on_error=True, use_multi = False):
         """
         """
         stack = self.command_stack
@@ -99,7 +99,7 @@ class ClusterPipeline(RedisCluster):
             return []
 
         try:
-            return self.send_cluster_commands(stack, raise_on_error)
+            return self.send_cluster_commands(stack, raise_on_error, use_multi = use_multi )
         finally:
             self.reset()
 
@@ -136,7 +136,7 @@ class ClusterPipeline(RedisCluster):
         #     self.connection = None
 
     @clusterdown_wrapper
-    def send_cluster_commands(self, stack, raise_on_error=True, allow_redirections=True):
+    def send_cluster_commands(self, stack, raise_on_error=True, allow_redirections=True, use_multi = False ):
         """
         Send a bunch of cluster commands to the redis cluster.
 
@@ -165,7 +165,10 @@ class ClusterPipeline(RedisCluster):
             # we can build a list of commands for each node.
             node_name = node['name']
             if node_name not in nodes:
-                nodes[node_name] = NodeCommands(self.parse_response, self.connection_pool.get_connection_by_node(node))
+                nodes[node_name] = NodeCommands(
+                                        self.parse_response,
+                                        self.connection_pool.get_connection_by_node(node),
+                                        use_multi           = use_multi )
 
             nodes[node_name].append(c)
 
@@ -377,12 +380,14 @@ class NodeCommands(object):
     """
     """
 
-    def __init__(self, parse_response, connection):
+    def __init__(self, parse_response, connection,
+                 use_multi = False ):
         """
         """
         self.parse_response = parse_response
         self.connection = connection
-        self.commands = []
+        self.commands   = []
+        self.useMulti   = use_multi     # if true, use multi-exec where possible.
 
     def append(self, c):
         """
@@ -404,12 +409,26 @@ class NodeCommands(object):
         # build up all commands into a single request to increase network perf
         # send all the commands and catch connection and timeout errors.
         try:
-            connection.send_packed_command(connection.pack_commands([c.args for c in commands]))
+            if  self.useMulti :
+                cmds = self.addTransaction( commands )
+            else :
+                cmds = [ c.args for c in commands ]
+            connection.send_packed_command( connection.pack_commands( cmds ) )
         except (ConnectionError, TimeoutError) as e:
             for c in commands:
                 c.result = e
 
+    def addTransaction( self, commands ):
+        cmds    = []
+        return cmds
+
     def read(self):
+        if  self.useMulti :
+            self.readMultiExec()
+        else :
+            self.readPlain()
+
+    def readPlain(self):
         """
         """
         connection = self.connection
@@ -434,3 +453,8 @@ class NodeCommands(object):
                     return
                 except RedisError:
                     c.result = sys.exc_info()[1]
+
+    def readMultiExec(self):
+        """
+        """
+        pass
