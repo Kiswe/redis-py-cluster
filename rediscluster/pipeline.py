@@ -6,7 +6,7 @@ import sys
 # rediscluster imports
 from .client import RedisCluster
 from .exceptions import (
-    RedisClusterException, AskError, MovedError, TryAgainError,
+    RedisClusterException, AskError, MovedError, TryAgainError, ResponseError,
 )
 from .utils import clusterdown_wrapper, dict_merge
 
@@ -206,7 +206,7 @@ class ClusterPipeline(RedisCluster):
         # collect all the commands we are allowed to retry.
         # (MOVED, ASK, or connection errors or timeout errors)
         attempt = sorted([c for c in attempt if isinstance(c.result, ERRORS_ALLOW_RETRY)], key=lambda x: x.position)
-        if attempt and allow_redirections:
+        if attempt and allow_redirections and not use_multi :
             # RETRY MAGIC HAPPENS HERE!
             # send these remaing comamnds one at a time using `execute_command`
             # in the main client. This keeps our retry logic in one place mostly,
@@ -222,6 +222,11 @@ class ClusterPipeline(RedisCluster):
             # If a lot of commands have failed, we'll be setting the
             # flag to rebuild the slots table from scratch. So MOVED errors should
             # correct themselves fairly quickly.
+            #
+            # not use_multi: if use_multi == True, it means we want the commands for
+            # the same slot to be atomic.  Automatic retry here spoils the atomic
+            # semantic.  So no automatic retry here and let the caller handle the
+            # retry, to ensure atomic semantic.
             self.connection_pool.nodes.increment_reinitialize_counter(len(attempt))
             for c in attempt:
                 try:
